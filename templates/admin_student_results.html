@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Student Results - {{ student.username }} - {{ exam.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2 mb-0">
+        <i class="fas fa-user-graduate me-2 text-primary"></i>Participant Results
+    </h1>
+    <div>
+        <a href="{{ url_for('admin_exam_results', exam_id=exam.id) }}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-arrow-left me-2"></i>Back to Exam Results
+        </a>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-primary">
+            <i class="fas fa-home me-2"></i>Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Student and Exam Information -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">
+            <i class="fas fa-info-circle me-2"></i>Student & Exam Details
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-primary">Participant Information</h6>
+                <p class="mb-2"><strong>Name:</strong> {{ student.username }}</p>
+                <p class="mb-2"><strong>Student ID:</strong> {{ student.id }}</p>
+                <p class="mb-0"><strong>Account Created:</strong> {{ student.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-primary">Examination Information</h6>
+                <p class="mb-2"><strong>Exam:</strong> {{ exam.title }}</p>
+                <p class="mb-2"><strong>Evaluation:</strong> <span class="badge bg-success">AI-Powered</span></p>
+                <p class="mb-0"><strong>Status:</strong> 
+                    {% if exam.is_enabled %}
+                        <span class="badge bg-success">Active</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Draft</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overall Performance Summary -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-star fa-2x mb-2 text-primary"></i>
+                <h4 class="text-primary">{{ "%.1f"|format(total_score) }}/{{ max_possible }}</h4>
+                <p class="mb-0 text-muted">Total Score</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-percentage fa-2x mb-2 text-success"></i>
+                <h4 class="text-success">{{ "%.1f"|format((total_score / max_possible * 100) if max_possible > 0 else 0) }}%</h4>
+                <p class="mb-0 text-muted">Percentage</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-question-circle fa-2x mb-2 text-info"></i>
+                <h4 class="text-info">{{ results|length }}</h4>
+                <p class="mb-0 text-muted">Questions Completed</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-robot fa-2x mb-2 text-warning"></i>
+                <h4 class="text-warning">{{ "%.1f"|format((results|sum(attribute='ai_score') / results|length * 100) if results else 0) }}%</h4>
+                <p class="mb-0 text-muted">Avg AI Score</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Question Results -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>Question-by-Question Results
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% for result in results %}
+        <div class="border-bottom p-4 {% if not loop.last %}border-bottom{% endif %}">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <h6 class="fw-bold">
+                            <span class="badge bg-primary me-2">Q{{ loop.index }}</span>
+                            Question {{ loop.index }}
+                        </h6>
+                        <p class="mb-2">{{ result.question.question_text if result.question else 'Question not found' }}</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-success">Participant's Answer:</label>
+                        <div class="bg-light p-3 rounded">
+                            {{ result.student_answer|default('No answer provided', true) }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-primary">Reference Answer:</label>
+                        <div class="bg-light p-3 rounded">
+                            {{ result.question.reference_answer if result.question else 'Reference answer not available' }}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <!-- AI Score -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">AI Evaluation Score</label>
+                            <div class="display-6 fw-bold 
+                                 {% if result.ai_score >= 0.8 %}text-success
+                                 {% elif result.ai_score >= 0.6 %}text-warning
+                                 {% else %}text-danger{% endif %}">
+                                {{ (result.ai_score * 100)|round(1) }}%
+                            </div>
+                            <small class="text-muted">Raw Score: {{ result.ai_score|round(3) }}</small>
+                        </div>
+                        
+                        <!-- Marks -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Marks Awarded</label>
+                            <div class="h3 fw-bold text-success">
+                                {{ result.marks_awarded|round(1) }}/{{ result.question.max_marks if result.question else 'N/A' }}
+                            </div>
+                        </div>
+                        
+                        <!-- AI Score -->
+                        <div class="mb-3">
+                            <span class="badge {% if result.ai_score >= 0.8 %}bg-success{% elif result.ai_score >= 0.6 %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ "%.1f"|format(result.ai_score * 100) }}% AI Score
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Bar -->
+            <div class="mt-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small class="text-muted">Performance</small>
+                    <small class="text-muted">{{ (result.marks_awarded / (result.question.max_marks if result.question else 1) * 100)|round(1) }}%</small>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar 
+                         {% if result.ai_score >= 0.8 %}bg-success
+                         {% elif result.ai_score >= 0.6 %}bg-warning
+                         {% else %}bg-danger{% endif %}" 
+                         role="progressbar" 
+                         style="width: {{ (result.marks_awarded / (result.question.max_marks if result.question else 1) * 100) }}%">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Performance Summary -->
+<div class="card shadow-sm mt-4">
+    <div class="card-header bg-light">
+        <h6 class="mb-0">
+            <i class="fas fa-chart-pie me-2"></i>Performance Summary
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <h6 class="text-success">High-Quality Answers</h6>
+                <ul class="list-unstyled">
+                    {% set high_scores = results|selectattr('ai_score', '>=', 0.8)|list %}
+                    <li><i class="fas fa-star text-success me-2"></i>{{ high_scores|length }} excellent answers (80%+)</li>
+                    <li><i class="fas fa-percentage text-success me-2"></i>{{ "%.1f"|format((high_scores|length / results|length * 100) if results else 0) }}% excellent rate</li>
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-info">AI Evaluation Insights</h6>
+                <ul class="list-unstyled">
+                    {% set high_scores = results|selectattr('ai_score', '>=', 0.8)|list %}
+                    {% set medium_scores = results|selectattr('ai_score', '>=', 0.6)|selectattr('ai_score', '<', 0.8)|list %}
+                    <li><i class="fas fa-star text-warning me-2"></i>{{ high_scores|length }} high-quality answers (80%+)</li>
+                    <li><i class="fas fa-star-half-alt text-info me-2"></i>{{ medium_scores|length }} medium-quality answers (60-79%)</li>
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-warning">Areas Requiring Review</h6>
+                <ul class="list-unstyled">
+                    {% set low_scores = results|selectattr('ai_score', '<', 0.6)|list %}
+                    <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>{{ low_scores|length }} low-scoring responses</li>
+                    <li><i class="fas fa-info-circle text-info me-2"></i>All scores based on AI evaluation</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="card shadow-sm mt-4">
+    <div class="card-body text-center">
+        <div class="d-flex justify-content-center gap-3">
+            <button class="btn btn-outline-primary" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print Results
+            </button>
+            <a href="{{ url_for('admin_exam_results', exam_id=exam.id) }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Exam Results
+            </a>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
+                <i class="fas fa-home me-2"></i>Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add any additional JavaScript functionality here
+    console.log('Admin student results page loaded');
+});
+</script>
+{% endblock %}

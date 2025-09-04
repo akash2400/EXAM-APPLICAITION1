@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Create Examination - AI Examination System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-plus me-2"></i>Create New Examination
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('create_exam') }}">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Examination Title <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="title" name="title" 
+                               placeholder="Enter examination title" required>
+                        <div class="form-text">A clear, descriptive title for the examination</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="Enter examination description (optional)"></textarea>
+                        <div class="form-text">Provide additional context about the examination</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="department_id" class="form-label">Department <span class="text-danger">*</span></label>
+                        <select class="form-select" id="department_id" name="department_id" required>
+                            <option value="">Select Department</option>
+                            {% for department in departments %}
+                            <option value="{{ department.id }}">{{ department.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Choose the department this exam is for</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="duration_minutes" class="form-label">Duration (Minutes) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="duration_minutes" name="duration_minutes" 
+                               value="60" min="5" max="300" required>
+                        <div class="form-text">Exam duration in minutes (5-300 minutes)</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-brain me-2"></i>OptimizedSAS Evaluation</h6>
+                            <p class="mb-0">This examination uses OptimizedSAS (Semantic Answer Similarity) with cross-encoder/stsb-roberta-large model for maximum accuracy. The system automatically filters irrelevant answers and provides precise semantic similarity scoring with configurable thresholds.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-2"></i>Next Steps:</h6>
+                        <ol class="mb-0">
+                            <li>Create the examination (this step)</li>
+                            <li>Upload question bank CSV file</li>
+                            <li>Enable the examination for participants</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary flex-fill">
+                            <i class="fas fa-arrow-left me-2"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary flex-fill">
+                            <i class="fas fa-save me-2"></i>Create Examination
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- CSV Format Guide -->
+        <div class="card mt-4 border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-file-csv me-2"></i>CSV Format Guide
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="mb-2">After creating the examination, you'll need to upload a CSV file with the following format:</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Column</th>
+                                <th>Description</th>
+                                <th>Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>question</code></td>
+                                <td>The question text</td>
+                                <td>"What is artificial intelligence?"</td>
+                            </tr>
+                            <tr>
+                                <td><code>answer</code></td>
+                                <td>Reference answer for AI evaluation</td>
+                                <td>"AI is the simulation of human intelligence..."</td>
+                            </tr>
+                            <tr>
+                                <td><code>max_marks</code></td>
+                                <td>Maximum marks for this question</td>
+                                <td>10</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-3">
+                    <h6>Sample CSV Content:</h6>
+                    <pre class="bg-light p-2 rounded"><code>question,answer,max_marks
+"What is machine learning?","Machine learning is a subset of AI that enables systems to learn from data without being explicitly programmed.",10
+"Explain neural networks.","Neural networks are computing systems inspired by biological neural networks, consisting of interconnected nodes.",15
+"What are the types of ML?","The main types are supervised learning, unsupervised learning, and reinforcement learning.",12</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

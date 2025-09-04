@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Results - {{ exam.title }}{% endblock %}
+
+{% block content %}
+<div class="results-container">
+    <!-- Results Header -->
+    <div class="results-header">
+        <h2>Examination Results</h2>
+        <div class="score-display">{{ total_score }}/{{ max_possible }}</div>
+        <div class="percentage-display">{{ ((total_score / max_possible) * 100)|round(1) if max_possible > 0 else 0 }}%</div>
+        <p class="text-muted">{{ exam.title }}</p>
+    </div>
+
+    <!-- Performance Summary -->
+    <div class="card">
+        <div class="card-header">
+            <h5>Performance Summary</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="performance-metrics">
+                        <div class="metric-label">Overall Score</div>
+                        <div class="metric-value">{{ ((total_score / max_possible) * 100)|round(1) if max_possible > 0 else 0 }}%</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="performance-metrics">
+                        <div class="metric-label">Questions Completed</div>
+                        <div class="metric-value">{{ results|length }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="performance-metrics">
+                        <div class="metric-label">Average AI Score</div>
+                        <div class="metric-value">{{ "%.1f"|format((results|sum(attribute='ai_score') / results|length * 100) if results else 0) }}%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question Results -->
+    <div class="card">
+        <div class="card-header">
+            <h5>Question Analysis</h5>
+        </div>
+        <div class="card-body p-0">
+            {% for result in results %}
+            <div class="question-result">
+                <div class="question-header">
+                    <div class="question-number">Question {{ loop.index }}</div>
+                    <div class="question-score">
+                        <div class="score-value">{{ (result.ai_score * 100)|round(1) }}%</div>
+                        <div class="score-label">AI Score</div>
+                    </div>
+                </div>
+                
+                <div class="question-content">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="answer-section">
+                                <h6>Question</h6>
+                                <div class="answer-text">{{ result.question.question_text if result.question else 'Question not found' }}</div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="answer-section">
+                                        <h6>Your Response</h6>
+                                        <div class="answer-text">{{ result.student_answer|default('No response provided', true) }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="answer-section">
+                                        <h6>Reference Answer</h6>
+                                        <div class="answer-text">{{ result.question.reference_answer if result.question else 'Reference answer not available' }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="performance-metrics">
+                                <div class="metric-label">Marks Awarded</div>
+                                <div class="metric-value">{{ result.marks_awarded|round(1) }}/{{ result.question.max_marks if result.question else 'N/A' }}</div>
+                                
+                                <div class="metric-label mt-4">AI Score</div>
+                                <div class="metric-value">{{ "%.1f"|format(result.ai_score * 100) }}%</div>
+                                
+                                <div class="metric-label mt-4">Performance</div>
+                                <div class="progress mt-2">
+                                    <div class="progress-bar {% if result.ai_score >= 0.8 %}bg-success{% elif result.ai_score >= 0.6 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ (result.marks_awarded / (result.question.max_marks if result.question else 1) * 100) }}%">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Summary Information -->
+    <div class="card">
+        <div class="card-header">
+            <h5>Examination Summary</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-muted">Evaluation Method</h6>
+                    <span class="badge bg-success">AI-Powered</span>
+                    <p class="small text-muted mt-2">
+                        Advanced AI evaluation with sentence transformers - zero tolerance for irrelevant answers
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted">Evaluation Method</h6>
+                    <span class="badge bg-info">AI-Powered</span>
+                    <p class="small text-muted mt-2">
+                        Using advanced NLP for answer evaluation
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="text-center mt-4">
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{{ url_for('student_dashboard') }}" class="btn btn-primary">
+                Back to Portal
+            </a>
+            <button class="btn btn-outline-secondary" onclick="window.print()">
+                Print Results
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Simple page initialization
+    console.log('Results page loaded');
+});
+</script>
+{% endblock %}

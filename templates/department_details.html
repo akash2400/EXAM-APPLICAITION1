@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}{{ department.name }} - Department Details{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-1">
+                <i class="fas fa-building me-2 text-primary"></i>{{ department.name }}
+            </h1>
+            {% if department.description %}
+            <p class="text-muted mb-0">{{ department.description }}</p>
+            {% endif %}
+        </div>
+        <div>
+            <a href="{{ url_for('manage_departments') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Departments
+            </a>
+        </div>
+    </div>
+
+    <!-- Department Info Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-graduation-cap fa-2x mb-2"></i>
+                    <h4 class="mb-1">{{ student_stats|length }}</h4>
+                    <p class="mb-0">Students</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-alt fa-2x mb-2"></i>
+                    <h4 class="mb-1">{{ exam_stats|length }}</h4>
+                    <p class="mb-0">Exams</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-alt fa-2x mb-2"></i>
+                    <h4 class="mb-1">{{ department.created_at.strftime('%Y-%m-%d') if department.created_at else 'N/A' }}</h4>
+                    <p class="mb-0">Created</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x mb-2"></i>
+                    <h4 class="mb-1">
+                        {% if exam_stats %}
+                            {{ "%.1f"|format(exam_stats|map(attribute='average_score')|sum / exam_stats|length) }}
+                        {% else %}
+                            0.0
+                        {% endif %}
+                    </h4>
+                    <p class="mb-0">Avg Score</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="departmentTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="exams-tab" data-bs-toggle="tab" data-bs-target="#exams" type="button" role="tab">
+                <i class="fas fa-file-alt me-2"></i>Exams ({{ exam_stats|length }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="students-tab" data-bs-toggle="tab" data-bs-target="#students" type="button" role="tab">
+                <i class="fas fa-users me-2"></i>Students ({{ student_stats|length }})
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="departmentTabsContent">
+        <!-- Exams Tab -->
+        <div class="tab-pane fade show active" id="exams" role="tabpanel">
+            {% if exam_stats %}
+                <div class="row">
+                    {% for stat in exam_stats %}
+                    <div class="col-lg-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-file-alt me-2 text-primary"></i>{{ stat.exam.title }}
+                                </h5>
+                                <div>
+                                    {% if stat.exam.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% elif stat.exam.is_enabled %}
+                                        <span class="badge bg-warning">Enabled</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Disabled</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                {% if stat.exam.description %}
+                                <p class="text-muted mb-3">{{ stat.exam.description }}</p>
+                                {% endif %}
+                                
+                                <div class="row text-center mb-3">
+                                    <div class="col-4">
+                                        <div class="border-end">
+                                            <h6 class="text-primary mb-1">{{ stat.total_questions }}</h6>
+                                            <small class="text-muted">Questions</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="border-end">
+                                            <h6 class="text-success mb-1">{{ stat.students_taken }}</h6>
+                                            <small class="text-muted">Students</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <h6 class="text-info mb-1">{{ stat.exam.duration_minutes }}m</h6>
+                                        <small class="text-muted">Duration</small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="text-muted">Average Score</small>
+                                        <small class="text-muted">{{ stat.average_score }}/{{ stat.max_possible_score }}</small>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        {% set percentage = (stat.average_score / stat.max_possible_score * 100) if stat.max_possible_score > 0 else 0 %}
+                                        <div class="progress-bar bg-info" role="progressbar" style="width: {{ percentage }}%"></div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <a href="{{ url_for('admin_exam_results', exam_id=stat.exam.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-chart-bar me-1"></i>Results
+                                    </a>
+                                    {% if stat.exam.is_active %}
+                                    <a href="{{ url_for('stop_exam', exam_id=stat.exam.id) }}" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-stop me-1"></i>Stop
+                                    </a>
+                                    {% else %}
+                                    <a href="{{ url_for('start_exam', exam_id=stat.exam.id) }}" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-play me-1"></i>Start
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="card-footer text-muted">
+                                <small>
+                                    <i class="fas fa-calendar me-1"></i>
+                                    Created: {{ stat.exam.created_at.strftime('%Y-%m-%d %H:%M') if stat.exam.created_at else 'N/A' }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Exams Found</h5>
+                    <p class="text-muted">This department doesn't have any exams yet.</p>
+                    <a href="{{ url_for('create_exam') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Create First Exam
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Students Tab -->
+        <div class="tab-pane fade" id="students" role="tabpanel">
+            {% if student_stats %}
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-users me-2"></i>Students in {{ department.name }}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Username</th>
+                                        <th>Exams Taken</th>
+                                        <th>Average Score</th>
+                                        <th>Joined</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for stat in student_stats %}
+                                    <tr>
+                                        <td>{{ stat.student.id }}</td>
+                                        <td>
+                                            <strong>{{ stat.student.username }}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">{{ stat.exams_taken }} exams</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success">{{ stat.average_score }}</span>
+                                        </td>
+                                        <td>{{ stat.student.created_at.strftime('%Y-%m-%d') if stat.student.created_at else 'N/A' }}</td>
+                                        <td>
+                                            <a href="{{ url_for('admin_student_results', exam_id=0, student_id=stat.student.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i>View Results
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Students Found</h5>
+                    <p class="text-muted">This department doesn't have any students yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// Auto-refresh exam status every 30 seconds
+setInterval(function() {
+    // Only refresh if we're on the exams tab
+    if (document.getElementById('exams-tab').classList.contains('active')) {
+        // You could add AJAX refresh logic here if needed
+        console.log('Auto-refreshing exam status...');
+    }
+}, 30000);
+</script>
+{% endblock %}

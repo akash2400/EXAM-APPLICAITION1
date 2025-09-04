@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Evaluator Configuration{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-cogs"></i> AI Evaluator Configuration
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Evaluator Selection</h5>
+                                <div class="form-group">
+                                    <label for="evaluator_type">Evaluator Type:</label>
+                                    <select class="form-control" id="evaluator_type" name="evaluator_type">
+                                        <option value="ai" {% if config.default_evaluator_type == 'ai' %}selected{% endif %}>
+                                            AI Evaluator (Multi-layer with bi-encoder + cross-encoder)
+                                        </option>
+                                        <option value="clean" {% if config.default_evaluator_type == 'clean' %}selected{% endif %}>
+                                            Clean Evaluator (Enhanced evaluation with multiple AI models)
+                                        </option>
+                                        <option value="optimized_sas" {% if config.default_evaluator_type == 'optimized_sas' %}selected{% endif %}>
+                                            Optimized SAS Evaluator (Cross-encoder with threshold control)
+                                        </option>
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        Choose the evaluation engine for scoring student answers.
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Performance Thresholds</h5>
+                                <div class="form-group">
+                                    <label for="pass_threshold">Pass Threshold (out of 5):</label>
+                                    <input type="number" class="form-control" id="pass_threshold" name="pass_threshold" 
+                                           value="{{ thresholds.pass_threshold }}" step="0.1" min="0" max="5">
+                                    <small class="form-text text-muted">Minimum score to pass an exam.</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <h5>Grade Thresholds</h5>
+                                <div class="form-group">
+                                    <label for="excellent_threshold">Excellent Threshold (out of 5):</label>
+                                    <input type="number" class="form-control" id="excellent_threshold" name="excellent_threshold" 
+                                           value="{{ thresholds.excellent_threshold }}" step="0.1" min="0" max="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="good_threshold">Good Threshold (out of 5):</label>
+                                    <input type="number" class="form-control" id="good_threshold" name="good_threshold" 
+                                           value="{{ thresholds.good_threshold }}" step="0.1" min="0" max="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="fair_threshold">Fair Threshold (out of 5):</label>
+                                    <input type="number" class="form-control" id="fair_threshold" name="fair_threshold" 
+                                           value="{{ thresholds.fair_threshold }}" step="0.1" min="0" max="5">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Advanced Thresholds</h5>
+                                <div class="form-group">
+                                    <label for="irrelevance_threshold">Irrelevance Threshold (0-1):</label>
+                                    <input type="number" class="form-control" id="irrelevance_threshold" name="irrelevance_threshold" 
+                                           value="{{ thresholds.irrelevance_threshold }}" step="0.01" min="0" max="1">
+                                    <small class="form-text text-muted">Below this similarity = irrelevant answer.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="critical_word_penalty_threshold">Critical Word Penalty Threshold (0-1):</label>
+                                    <input type="number" class="form-control" id="critical_word_penalty_threshold" name="critical_word_penalty_threshold" 
+                                           value="{{ thresholds.critical_word_penalty_threshold }}" step="0.01" min="0" max="1">
+                                    <small class="form-text text-muted">Above this = severe penalty for critical word mismatch.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sas_threshold">SAS Similarity Threshold (0-1):</label>
+                                    <input type="number" class="form-control" id="sas_threshold" name="sas_threshold" 
+                                           value="{{ thresholds.sas_threshold }}" step="0.01" min="0" max="1">
+                                    <small class="form-text text-muted">OptimizedSAS threshold - answers below this get 0 score. Model-driven semantic filtering (recommended: 0.6-0.8).</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <h5>Evaluator Information</h5>
+                                <div class="alert alert-info">
+                                    <h6>Current Evaluator: {{ config.default_evaluator_type.upper() }} Evaluator</h6>
+                                    <p><strong>Cache Directory:</strong> {{ config.cache_dir }}</p>
+                                    <p><strong>Logging:</strong> 
+                                        {% if config.log_evaluations %}Enabled{% else %}Disabled{% endif %} (Evaluations), 
+                                        {% if config.log_detailed_breakdown %}Enabled{% else %}Disabled{% endif %} (Detailed Breakdown)
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Configuration
+                                </button>
+                                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">
+                        <i class="fas fa-info-circle"></i> Evaluator Descriptions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6>AI Evaluator</h6>
+                            <p class="text-muted">
+                                Multi-layer evaluation using bi-encoder and cross-encoder models. 
+                                Provides semantic similarity analysis with keyword and concept matching.
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Clean Evaluator</h6>
+                            <p class="text-muted">
+                                Enhanced evaluation with multiple AI models. Uses advanced 
+                                semantic analysis and linguistic quality assessment.
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Optimized SAS Evaluator</h6>
+                            <p class="text-muted">
+                                Advanced semantic similarity using cross-encoder/stsb-roberta-large 
+                                with configurable thresholds. Best accuracy for answer evaluation.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Add some client-side validation
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const passThreshold = document.getElementById('pass_threshold');
+    const excellentThreshold = document.getElementById('excellent_threshold');
+    const goodThreshold = document.getElementById('good_threshold');
+    const fairThreshold = document.getElementById('fair_threshold');
+    
+    form.addEventListener('submit', function(e) {
+        const pass = parseFloat(passThreshold.value);
+        const excellent = parseFloat(excellentThreshold.value);
+        const good = parseFloat(goodThreshold.value);
+        const fair = parseFloat(fairThreshold.value);
+        
+        if (excellent <= good || good <= fair || fair <= pass) {
+            e.preventDefault();
+            alert('Thresholds must be in ascending order: Fair < Good < Excellent, and Pass should be the lowest.');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}
+

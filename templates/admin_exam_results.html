@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Exam Results - {{ exam.title }} - AI Exam System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2 mb-0">Examination Results</h1>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">Back to Dashboard</a>
+</div>
+
+<!-- Exam Information -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">{{ exam.title }}</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p class="mb-2"><strong>Description:</strong> {{ exam.description or 'No description provided' }}</p>
+                <p class="mb-2"><strong>Evaluation:</strong> <span class="badge bg-success">AI-Powered</span></p>
+                <p class="mb-0"><strong>Status:</strong> 
+                    {% if exam.is_enabled %}
+                        <span class="badge bg-success">Active</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Draft</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-6">
+                <p class="mb-2"><strong>Total Questions:</strong> <span class="badge bg-info">{{ total_questions }}</span></p>
+                <p class="mb-2"><strong>Max Possible Score:</strong> <span class="badge bg-success">{{ max_possible_score }}</span></p>
+                <p class="mb-0"><strong>Created:</strong> {{ exam.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Overview -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="kpi-card kpi-blue">
+            <div class="card-body text-center">
+                <h4 class="mb-1">{{ total_students }}</h4>
+                <p class="mb-0 text-muted">Participants</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card kpi-green">
+            <div class="card-body text-center">
+                <h4 class="mb-1">{{ "%.1f"|format(avg_percentage) }}%</h4>
+                <p class="mb-0 text-muted">Average Percentage</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card kpi-blue">
+            <div class="card-body text-center">
+                <h4 class="mb-1">{{ "%.1f"|format(avg_score) }}</h4>
+                <p class="mb-0 text-muted">Average Score</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Student Results Table -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>Participant Performance
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if student_results %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Participant</th>
+                        <th>Questions</th>
+                        <th>Score</th>
+                        <th>Percentage</th>
+                        <th>Submitted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in student_results %}
+                    <tr>
+                        <td>
+                            <span class="badge bg-primary">{{ loop.index }}</span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('admin_student_results', exam_id=exam.id, student_id=result.student_id) }}" class="text-decoration-none">{{ result.username }}</a>
+                        </td>
+                        <td>
+                            {{ result.questions_answered }}/{{ total_questions }}
+                        </td>
+                        <td>
+                            {{ "%.1f"|format(result.total_score) }}/{{ max_possible_score }}
+                        </td>
+                        <td>
+                            {% set percentage = (result.total_score / max_possible_score * 100) if max_possible_score > 0 else 0 %}
+                            {{ "%.1f"|format(percentage) }}%
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ result.submitted_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No participants have completed this examination yet</h5>
+            <p class="text-muted">Results will appear here once participants complete the examination</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Simplified analytics: removed detailed performance sections per requirements -->
+
+<!-- Actions -->
+<div class="card shadow-sm mt-4">
+    <div class="card-body text-center">
+        <div class="d-flex justify-content-center gap-3">
+            <button class="btn btn-outline-primary" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print Results
+            </button>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
+                <i class="fas fa-home me-2"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add any additional JavaScript functionality here
+    console.log('Admin exam results page loaded');
+});
+</script>
+{% endblock %}
