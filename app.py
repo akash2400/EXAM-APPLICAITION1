@@ -8,6 +8,7 @@ import os
 from datetime import datetime, timedelta
 from evaluator_selector import get_evaluator_from_config
 from evaluator_config import get_evaluator_config
+from llm_evaluator import LLMEvaluator
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
@@ -19,41 +20,26 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Initialize evaluator as main evaluation engine
+# Initialize LLM evaluator as main evaluation engine
 try:
-    config = get_evaluator_config()
-    evaluator_type = config.get('default_evaluator_type', 'ai')
-    ai_evaluator = get_evaluator_from_config(evaluator_type)
+    llm_evaluator = LLMEvaluator()
     
-    print(f"✅ {evaluator_type.upper()}Evaluator initialized successfully")
-    
-    # Handle different evaluator types
-    if hasattr(ai_evaluator, 'config') and hasattr(ai_evaluator.config, 'bi_encoder_name'):
-        # AIEvaluator
-        print(f"📊 Models: Bi-encoder ({ai_evaluator.config.bi_encoder_name}), Cross-encoder (L12-v2)")
-        print(f"⚙️  Config: Cache directory={ai_evaluator.config.cache_dir}")
-    elif hasattr(ai_evaluator, 'model') and ai_evaluator.model:
-        # OptimizedSASEvaluator
-        print(f"📊 Model loaded: {ai_evaluator.model_name}")
-        print(f"⚙️  Config: Threshold={ai_evaluator.threshold}, Max marks={ai_evaluator.max_marks}")
-        print(f"🎯 Device: {ai_evaluator.device}, Batch size: {ai_evaluator.batch_size}")
-    elif hasattr(ai_evaluator, 'models') and ai_evaluator.models:
-        # ModelBasedCriticalWordEvaluator (if available)
-        print(f"📊 Models loaded: {list(ai_evaluator.models.keys())}")
-        print(f"⚙️  Config: Cache directory={ai_evaluator.cache_dir}")
-        print(f"🎯 Thresholds: Pass={ai_evaluator.pass_threshold}, Max={ai_evaluator.max_marks}")
+    if llm_evaluator.is_available:
+        print(f"✅ LLM Evaluator initialized successfully")
+        print(f"📊 Model: {llm_evaluator.model_name}")
+        print(f"🌐 Ollama URL: {llm_evaluator.ollama_url}")
+        print(f"⚙️  Config: Max retries={llm_evaluator.max_retries}, Timeout={llm_evaluator.timeout}s")
     else:
-        # CleanEvaluator (fallback)
-        print(f"📊 Models loaded: {list(ai_evaluator.models.keys())}")
-        print(f"⚙️  Config: Cache directory={ai_evaluator.config.cache_dir}")
+        print(f"❌ LLM Evaluator not available")
+        print("Please ensure Ollama is running with llama2:7b model:")
+        print("1. Install Ollama: https://ollama.ai/")
+        print("2. Run: ollama serve")
+        print("3. Run: ollama pull llama2:7b")
+        llm_evaluator = None
         
 except Exception as e:
-    print(f"❌ Failed to initialize evaluator: {e}")
-    print("Please ensure the required models are in the adaptive_cache directory:")
-    print("- sentence-transformers_all-mpnet-base-v2/")
-    print("- sentence-transformers_all-MiniLM-L12-v2/")
-    print("- Additional models for ModelBasedCriticalWordEvaluator")
-    ai_evaluator = None
+    print(f"❌ Failed to initialize LLM evaluator: {e}")
+    llm_evaluator = None
 
 # Database Models
 class Department(db.Model):
@@ -116,9 +102,19 @@ class Result(db.Model):
     ai_score = db.Column(db.Float)
     marks_awarded = db.Column(db.Float)
     submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
-    student = db.relationship('User', backref='results')
+    
+    # LLM Evaluation fields
+    llm_score = db.Column(db.Float, nullable=True)  # Score suggested by LLM
+    llm_explanation = db.Column(db.Text, nullable=True)  # LLM's explanation
+    is_approved = db.Column(db.Boolean, default=False)  # Admin approval status
+    approved_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Admin who approved
+    approved_at = db.Column(db.DateTime, nullable=True)  # When it was approved
+    final_marks = db.Column(db.Float, nullable=True)  # Final marks after approval
+    
+    student = db.relationship('User', backref='results', foreign_keys=[student_id])
     question = db.relationship('Question', backref='results')
     session = db.relationship('ExamSession', backref='results')
+    approver = db.relationship('User', backref='approved_results', foreign_keys=[approved_by])
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -170,7 +166,13 @@ def admin_dashboard():
         return redirect(url_for('student_dashboard'))
     
     exams = Exam.query.order_by(Exam.created_at.desc()).all()
-    return render_template('admin_dashboard.html', exams=exams)
+    
+    # Count pending evaluations
+    pending_count = Result.query.filter_by(is_approved=False).count()
+    
+    return render_template('admin_dashboard.html', 
+                         exams=exams, 
+                         pending_evaluations_count=pending_count)
 
 @app.route('/admin/departments')
 @login_required
@@ -485,6 +487,134 @@ def delete_exam(exam_id):
     flash('Exam deleted successfully!', 'success')
     return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/pending_evaluations')
+@login_required
+def pending_evaluations():
+    """Show all pending LLM evaluations that need admin approval."""
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    # Get all pending evaluations grouped by exam and student
+    pending_results = db.session.query(Result).filter_by(is_approved=False).options(
+        db.joinedload(Result.exam),
+        db.joinedload(Result.student),
+        db.joinedload(Result.question)
+    ).order_by(Result.exam_id, Result.student_id, Result.question_id).all()
+    
+    # Group by exam and student
+    evaluations_by_exam_student = {}
+    for result in pending_results:
+        key = (result.exam_id, result.student_id)
+        if key not in evaluations_by_exam_student:
+            evaluations_by_exam_student[key] = {
+                'exam': result.exam,
+                'student': result.student,
+                'results': []
+            }
+        evaluations_by_exam_student[key]['results'].append(result)
+    
+    return render_template('admin_pending_evaluations.html', 
+                         evaluations=evaluations_by_exam_student.values())
+
+@app.route('/admin/review_evaluation/<int:exam_id>/<int:student_id>')
+@login_required
+def review_evaluation(exam_id, student_id):
+    """Review LLM evaluations for a specific student's exam."""
+    if current_user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    exam = Exam.query.get_or_404(exam_id)
+    student = User.query.get_or_404(student_id)
+    
+    # Get all results for this student's exam
+    results = Result.query.filter_by(
+        exam_id=exam_id,
+        student_id=student_id
+    ).options(db.joinedload(Result.question)).order_by(Result.question_id).all()
+    
+    if not results:
+        flash('No results found for this student.', 'error')
+        return redirect(url_for('pending_evaluations'))
+    
+    return render_template('admin_review_evaluation.html',
+                         exam=exam,
+                         student=student,
+                         results=results)
+
+@app.route('/admin/approve_evaluation', methods=['POST'])
+@login_required
+def approve_evaluation():
+    """Approve or modify LLM evaluation scores."""
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        data = request.get_json()
+        result_id = data.get('result_id')
+        approved_score = float(data.get('approved_score', 0))
+        
+        result = Result.query.get_or_404(result_id)
+        
+        # Update the result with admin approval
+        result.is_approved = True
+        result.approved_by = current_user.id
+        result.approved_at = datetime.utcnow()
+        result.final_marks = approved_score
+        result.marks_awarded = approved_score  # Update legacy field for compatibility
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Evaluation approved successfully!',
+            'approved_score': approved_score
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error approving evaluation: {str(e)}'}), 500
+
+@app.route('/admin/bulk_approve_evaluation', methods=['POST'])
+@login_required
+def bulk_approve_evaluation():
+    """Bulk approve all LLM evaluations for a student's exam."""
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        data = request.get_json()
+        exam_id = data.get('exam_id')
+        student_id = data.get('student_id')
+        
+        # Get all pending results for this student's exam
+        results = Result.query.filter_by(
+            exam_id=exam_id,
+            student_id=student_id,
+            is_approved=False
+        ).all()
+        
+        approved_count = 0
+        for result in results:
+            result.is_approved = True
+            result.approved_by = current_user.id
+            result.approved_at = datetime.utcnow()
+            result.final_marks = result.llm_score  # Use LLM suggested score
+            result.marks_awarded = result.llm_score  # Update legacy field
+            
+            approved_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Bulk approved {approved_count} evaluations successfully!',
+            'approved_count': approved_count
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error bulk approving evaluations: {str(e)}'}), 500
+
 @app.route('/admin/evaluator_config', methods=['GET', 'POST'])
 @login_required
 def evaluator_config():
@@ -726,88 +856,75 @@ def submit_exam():
         return jsonify({'error': 'Exam already submitted'}), 400
     
     try:
-        total_score = 0
         questions = Question.query.filter_by(exam_id=exam_id).all()
         
         for question in questions:
             student_answer = request.form.get(f'answer_{question.id}', '')
             
             if student_answer.strip():
-                # Check if evaluator is available
-                if ai_evaluator is None:
-                    return jsonify({'error': 'AI Evaluator not available. Please contact administrator.'}), 500
+                # Check if LLM evaluator is available
+                if llm_evaluator is None or not llm_evaluator.is_available:
+                    return jsonify({'error': 'LLM Evaluator not available. Please contact administrator.'}), 500
                 
                 try:
-                    # Evaluate using the selected evaluator
-                    result = ai_evaluator.evaluate(
+                    # Evaluate using LLM evaluator
+                    evaluation_result = llm_evaluator.evaluate(
                         student_answer=student_answer,
-                        reference_answer=question.reference_answer
+                        reference_answer=question.reference_answer,
+                        question=question.question_text,
+                        max_marks=question.max_marks
                     )
                     
-                    # Handle different result formats from different evaluators
-                    if 'final_score' in result:
-                        # Standard evaluator format (AIEvaluator, OptimizedSAS, etc.)
-                        ai_score = result['final_score'] / 10.0  # Convert 0-10 to 0-1
-                        details = result['details']
-                        
-                        # Determine evaluator type for logging
-                        evaluator_name = type(ai_evaluator).__name__
-                        
-                        # Log evaluation details for debugging
-                        print(f"🔍 Question {question.id} Evaluation ({evaluator_name}):")
-                        print(f"   📊 Final Score: {result['final_score']:.2f}/10")
-                        
-                        # Different details based on evaluator type
-                        if evaluator_name == "OptimizedSASEvaluator":
-                            print(f"   🎯 Raw Score: {details.get('raw_score', 0):.4f}")
-                            print(f"   📋 Category: {details.get('category', 'Unknown')}")
-                            print(f"   🚫 Filtered: {details.get('filtered', False)}")
-                            print(f"   ⚙️  Threshold: {details.get('threshold', 0):.3f}")
-                        else:
-                            # AIEvaluator or other formats
-                            print(f"   📏 Length Score: {details.get('length_score', 0):.3f}")
-                            print(f"   🧠 Semantic Bi: {details.get('semantic_bi', 0):.3f}")
-                            print(f"   🎯 Cross Encoder: {details.get('cross_encoder', 0):.3f}")
-                            print(f"   🔑 Keyword Score: {details.get('keyword_score', 0):.3f}")
-                            print(f"   💡 Concept Score: {details.get('concept_score', 0):.3f}")
-                            if details.get('irrelevant', False):
-                                print(f"   ⚠️  Marked as irrelevant")
-                        
-                    else:
-                        # Legacy CleanEvaluator format (fallback)
-                        ai_score = result['score']
-                        print(f"🔍 Question {question.id} Evaluation (CleanEvaluator):")
-                        print(f"   📊 Score: {ai_score:.3f}")
-                        print(f"   🎯 Confidence: {result.get('confidence', 0):.3f}")
-                        print(f"   🧠 Semantic: {result.get('semantic_similarity', 0):.3f}")
-                        print(f"   📝 Linguistic: {result.get('linguistic_quality', 0):.3f}")
-                        print(f"   📚 Content: {result.get('content_coverage', 0):.3f}")
-                        print(f"   ✨ Text Quality: {result.get('text_quality', 0):.3f}")
+                    # Extract LLM evaluation details
+                    llm_score = evaluation_result['final_score']
+                    details = evaluation_result['details']
+                    explanation = details.get('explanation', 'No explanation provided')
                     
-                    # Calculate marks based on AI evaluation score
-                    marks_awarded = ai_score * question.max_marks
+                    # Log evaluation details
+                    print(f"🔍 Question {question.id} LLM Evaluation:")
+                    print(f"   📊 LLM Score: {llm_score:.2f}/{question.max_marks}")
+                    print(f"   💭 Explanation: {explanation}")
+                    print(f"   🤖 Model: {details.get('model_name', 'Unknown')}")
                     
-                    total_score += marks_awarded
-                    
-                    # Save result
+                    # Save result with LLM evaluation (pending admin approval)
                     result = Result(
                         exam_id=exam_id,
                         student_id=current_user.id,
                         question_id=question.id,
                         student_answer=student_answer,
-                        ai_score=ai_score,
-                        marks_awarded=marks_awarded
+                        ai_score=0.0,  # Legacy field, not used in LLM workflow
+                        marks_awarded=0.0,  # Will be set after admin approval
+                        llm_score=llm_score,
+                        llm_explanation=explanation,
+                        is_approved=False,  # Pending admin approval
+                        final_marks=None  # Will be set after approval
                     )
                     db.session.add(result)
                     
                 except Exception as e:
-                    return jsonify({'error': f'Evaluation failed: {str(e)}'}), 500
+                    print(f"❌ LLM evaluation failed for question {question.id}: {str(e)}")
+                    return jsonify({'error': f'LLM evaluation failed: {str(e)}'}), 500
+            else:
+                # Save empty answer
+                result = Result(
+                    exam_id=exam_id,
+                    student_id=current_user.id,
+                    question_id=question.id,
+                    student_answer="",
+                    ai_score=0.0,
+                    marks_awarded=0.0,
+                    llm_score=0.0,
+                    llm_explanation="No answer provided",
+                    is_approved=False,
+                    final_marks=None
+                )
+                db.session.add(result)
         
         db.session.commit()
         
         return jsonify({
-            'message': 'Exam submitted successfully!',
-            'total_score': round(total_score, 2),
+            'message': 'Exam submitted successfully! Your answers are being evaluated by AI and will be reviewed by the administrator.',
+            'status': 'pending_review',
             'redirect_url': url_for('view_results', exam_id=exam_id)
         })
     
@@ -834,24 +951,24 @@ def view_results(exam_id):
         flash('No results found for this exam.', 'error')
         return redirect(url_for('student_dashboard'))
     
-    total_score = sum(result.marks_awarded for result in results)
+    # Check if all results are approved
+    all_approved = all(result.is_approved for result in results)
     
-    # Calculate max possible marks safely
-    max_possible = 0
-    for result in results:
-        if result.question:
-            max_possible += result.question.max_marks
-        else:
-            # Fallback: get question directly if relationship fails
-            question = Question.query.get(result.question_id)
-            if question:
-                max_possible += question.max_marks
+    if all_approved:
+        # Calculate final scores
+        total_score = sum(result.final_marks or 0 for result in results)
+        max_possible = sum(result.question.max_marks for result in results if result.question)
+    else:
+        # Show pending status
+        total_score = 0
+        max_possible = sum(result.question.max_marks for result in results if result.question)
     
     return render_template('results.html', 
                          exam=exam, 
                          results=results, 
                          total_score=total_score,
-                         max_possible=max_possible)
+                         max_possible=max_possible,
+                         all_approved=all_approved)
 
 # Error handlers
 @app.errorhandler(404)

@@ -7,10 +7,29 @@
     <!-- Results Header -->
     <div class="results-header">
         <h2>Examination Results</h2>
-        <div class="score-display">{{ total_score }}/{{ max_possible }}</div>
-        <div class="percentage-display">{{ ((total_score / max_possible) * 100)|round(1) if max_possible > 0 else 0 }}%</div>
+        {% if all_approved %}
+            <div class="score-display">{{ total_score }}/{{ max_possible }}</div>
+            <div class="percentage-display">{{ ((total_score / max_possible) * 100)|round(1) if max_possible > 0 else 0 }}%</div>
+        {% else %}
+            <div class="score-display text-warning">
+                <i class="fas fa-clock"></i> Pending Review
+            </div>
+            <div class="percentage-display text-muted">Waiting for Admin Approval</div>
+        {% endif %}
         <p class="text-muted">{{ exam.title }}</p>
     </div>
+
+    {% if not all_approved %}
+    <!-- Pending Review Alert -->
+    <div class="alert alert-warning" role="alert">
+        <h4 class="alert-heading">
+            <i class="fas fa-clock"></i> Results Under Review
+        </h4>
+        <p>Your exam has been submitted and is currently being reviewed by the administrator. Your answers have been evaluated by AI, and the results will be available once approved.</p>
+        <hr>
+        <p class="mb-0">Please check back later or contact your instructor if you have any questions.</p>
+    </div>
+    {% endif %}
 
     <!-- Performance Summary -->
     <div class="card">
@@ -22,7 +41,11 @@
                 <div class="col-md-4">
                     <div class="performance-metrics">
                         <div class="metric-label">Overall Score</div>
-                        <div class="metric-value">{{ ((total_score / max_possible) * 100)|round(1) if max_possible > 0 else 0 }}%</div>
+                        {% if all_approved %}
+                            <div class="metric-value">{{ ((total_score / max_possible) * 100)|round(1) if max_possible > 0 else 0 }}%</div>
+                        {% else %}
+                            <div class="metric-value text-muted">Pending</div>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -33,8 +56,14 @@
                 </div>
                 <div class="col-md-4">
                     <div class="performance-metrics">
-                        <div class="metric-label">Average AI Score</div>
-                        <div class="metric-value">{{ "%.1f"|format((results|sum(attribute='ai_score') / results|length * 100) if results else 0) }}%</div>
+                        <div class="metric-label">LLM Evaluation</div>
+                        {% if all_approved %}
+                            {% set total_final_marks = results|sum(attribute='final_marks') or 0 %}
+                            {% set total_max_marks = results|sum(attribute='question.max_marks') or 0 %}
+                            <div class="metric-value">{{ "%.1f"|format(total_final_marks / results|length if results else 0) }}/{{ "%.1f"|format(total_max_marks / results|length if results else 0) }}</div>
+                        {% else %}
+                            <div class="metric-value text-muted">Under Review</div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -52,8 +81,13 @@
                 <div class="question-header">
                     <div class="question-number">Question {{ loop.index }}</div>
                     <div class="question-score">
-                        <div class="score-value">{{ (result.ai_score * 100)|round(1) }}%</div>
-                        <div class="score-label">AI Score</div>
+                        {% if all_approved %}
+                            <div class="score-value">{{ (result.final_marks or 0)|round(1) }}/{{ result.question.max_marks if result.question else 'N/A' }}</div>
+                            <div class="score-label">Final Score</div>
+                        {% else %}
+                            <div class="score-value text-warning">{{ (result.llm_score or 0)|round(1) }}/{{ result.question.max_marks if result.question else 'N/A' }}</div>
+                            <div class="score-label">LLM Suggested</div>
+                        {% endif %}
                     </div>
                 </div>
                 
@@ -83,19 +117,35 @@
                         
                         <div class="col-md-4">
                             <div class="performance-metrics">
-                                <div class="metric-label">Marks Awarded</div>
-                                <div class="metric-value">{{ result.marks_awarded|round(1) }}/{{ result.question.max_marks if result.question else 'N/A' }}</div>
-                                
-                                <div class="metric-label mt-4">AI Score</div>
-                                <div class="metric-value">{{ "%.1f"|format(result.ai_score * 100) }}%</div>
-                                
-                                <div class="metric-label mt-4">Performance</div>
-                                <div class="progress mt-2">
-                                    <div class="progress-bar {% if result.ai_score >= 0.8 %}bg-success{% elif result.ai_score >= 0.6 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                         role="progressbar" 
-                                         style="width: {{ (result.marks_awarded / (result.question.max_marks if result.question else 1) * 100) }}%">
+                                {% if all_approved %}
+                                    <div class="metric-label">Final Marks</div>
+                                    <div class="metric-value">{{ (result.final_marks or 0)|round(1) }}/{{ result.question.max_marks if result.question else 'N/A' }}</div>
+                                    
+                                    <div class="metric-label mt-4">LLM Explanation</div>
+                                    <div class="metric-value small">{{ result.llm_explanation or 'No explanation provided' }}</div>
+                                    
+                                    <div class="metric-label mt-4">Performance</div>
+                                    <div class="progress mt-2">
+                                        {% set final_marks = result.final_marks or 0 %}
+                                        {% set max_marks = result.question.max_marks if result.question else 1 %}
+                                        {% set percentage = (final_marks / max_marks * 100) if max_marks > 0 else 0 %}
+                                        <div class="progress-bar {% if percentage >= 80 %}bg-success{% elif percentage >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ percentage }}%">
+                                        </div>
                                     </div>
-                                </div>
+                                {% else %}
+                                    <div class="metric-label">LLM Suggested Score</div>
+                                    <div class="metric-value text-warning">{{ (result.llm_score or 0)|round(1) }}/{{ result.question.max_marks if result.question else 'N/A' }}</div>
+                                    
+                                    <div class="metric-label mt-4">LLM Explanation</div>
+                                    <div class="metric-value small text-muted">{{ result.llm_explanation or 'No explanation provided' }}</div>
+                                    
+                                    <div class="metric-label mt-4">Status</div>
+                                    <div class="metric-value">
+                                        <span class="badge bg-warning">Pending Review</span>
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -114,17 +164,24 @@
             <div class="row">
                 <div class="col-md-6">
                     <h6 class="text-muted">Evaluation Method</h6>
-                    <span class="badge bg-success">AI-Powered</span>
+                    <span class="badge bg-primary">LLM-Powered</span>
                     <p class="small text-muted mt-2">
-                        Advanced AI evaluation with sentence transformers - zero tolerance for irrelevant answers
+                        Advanced LLM evaluation using Ollama with Llama 7B model for intelligent answer assessment
                     </p>
                 </div>
                 <div class="col-md-6">
-                    <h6 class="text-muted">Evaluation Method</h6>
-                    <span class="badge bg-info">AI-Powered</span>
-                    <p class="small text-muted mt-2">
-                        Using advanced NLP for answer evaluation
-                    </p>
+                    <h6 class="text-muted">Review Process</h6>
+                    {% if all_approved %}
+                        <span class="badge bg-success">Approved</span>
+                        <p class="small text-muted mt-2">
+                            All evaluations have been reviewed and approved by the administrator
+                        </p>
+                    {% else %}
+                        <span class="badge bg-warning">Pending Review</span>
+                        <p class="small text-muted mt-2">
+                            LLM evaluations are awaiting administrator review and approval
+                        </p>
+                    {% endif %}
                 </div>
             </div>
         </div>

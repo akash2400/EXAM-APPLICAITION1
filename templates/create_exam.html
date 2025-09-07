@@ -4,14 +4,14 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
+    <div class="col-12 col-md-10 col-lg-8">
         <div class="card shadow-lg border-0">
             <div class="card-header bg-primary text-white">
                 <h4 class="mb-0">
                     <i class="fas fa-plus me-2"></i>Create New Examination
                 </h4>
             </div>
-            <div class="card-body p-4">
+            <div class="card-body p-4 p-md-5">
                 <form method="POST" action="{{ url_for('create_exam') }}">
                     <div class="mb-3">
                         <label for="title" class="form-label">Examination Title <span class="text-danger">*</span></label>
@@ -46,9 +46,9 @@
                     </div>
                     
                     <div class="mb-4">
-                        <div class="alert alert-success">
-                            <h6><i class="fas fa-brain me-2"></i>OptimizedSAS Evaluation</h6>
-                            <p class="mb-0">This examination uses OptimizedSAS (Semantic Answer Similarity) with cross-encoder/stsb-roberta-large model for maximum accuracy. The system automatically filters irrelevant answers and provides precise semantic similarity scoring with configurable thresholds.</p>
+                        <div class="alert alert-primary">
+                            <h6><i class="fas fa-robot me-2"></i>LLM-Powered Evaluation</h6>
+                            <p class="mb-0">This examination uses advanced LLM evaluation with Ollama and Llama 7B model for intelligent answer assessment. The system provides detailed explanations for each score and requires administrator review and approval before final results are released to students.</p>
                         </div>
                     </div>
                     
@@ -99,7 +99,7 @@
                             </tr>
                             <tr>
                                 <td><code>answer</code></td>
-                                <td>Reference answer for AI evaluation</td>
+                                <td>Reference answer for LLM evaluation</td>
                                 <td>"AI is the simulation of human intelligence..."</td>
                             </tr>
                             <tr>

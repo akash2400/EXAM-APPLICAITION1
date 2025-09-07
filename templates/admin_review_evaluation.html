@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Review LLM Evaluation{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-search text-primary"></i> Review LLM Evaluation</h2>
+                <a href="{{ url_for('pending_evaluations') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Pending
+                </a>
+            </div>
+
+            <!-- Student and Exam Info -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-graduate"></i> {{ student.username }} - {{ exam.title }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Department:</strong> {{ student.department.name if student.department else 'N/A' }}</p>
+                            <p><strong>Submitted:</strong> {{ results[0].submitted_at.strftime('%Y-%m-%d %H:%M') if results else 'N/A' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Total Questions:</strong> {{ results|length }}</p>
+                            <p><strong>Status:</strong> 
+                                <span class="badge badge-warning">Pending Review</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Evaluation Results -->
+            {% for result in results %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Question {{ loop.index }}</h5>
+                    <span class="badge badge-info">{{ result.question.max_marks }} marks</span>
+                </div>
+                <div class="card-body">
+                    <!-- Question -->
+                    <div class="mb-3">
+                        <h6><i class="fas fa-question-circle text-primary"></i> Question:</h6>
+                        <div class="border p-3 bg-light">
+                            {{ result.question.question_text }}
+                        </div>
+                    </div>
+
+                    <!-- Reference Answer -->
+                    <div class="mb-3">
+                        <h6><i class="fas fa-lightbulb text-success"></i> Reference Answer:</h6>
+                        <div class="border p-3 bg-light">
+                            {{ result.question.reference_answer }}
+                        </div>
+                    </div>
+
+                    <!-- Student Answer -->
+                    <div class="mb-3">
+                        <h6><i class="fas fa-user text-info"></i> Student Answer:</h6>
+                        <div class="border p-3 bg-light">
+                            {% if result.student_answer %}
+                                {{ result.student_answer }}
+                            {% else %}
+                                <em class="text-muted">No answer provided</em>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- LLM Evaluation -->
+                    <div class="mb-3">
+                        <h6><i class="fas fa-robot text-warning"></i> LLM Evaluation:</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="border p-3 bg-warning bg-opacity-10">
+                                    <strong>Suggested Score:</strong> 
+                                    <span class="badge badge-warning badge-lg">{{ "%.1f"|format(result.llm_score or 0) }}/{{ result.question.max_marks }}</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="border p-3 bg-warning bg-opacity-10">
+                                    <strong>Explanation:</strong><br>
+                                    <small>{{ result.llm_explanation or 'No explanation provided' }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Approval Section -->
+                    <div class="border p-3 bg-primary bg-opacity-10">
+                        <h6><i class="fas fa-gavel text-primary"></i> Admin Review:</h6>
+                        <div class="row align-items-end">
+                            <div class="col-md-4">
+                                <label for="approved_score_{{ result.id }}">Approved Score:</label>
+                                <input type="number" 
+                                       class="form-control" 
+                                       id="approved_score_{{ result.id }}"
+                                       min="0" 
+                                       max="{{ result.question.max_marks }}" 
+                                       step="0.1"
+                                       value="{{ result.llm_score or 0 }}"
+                                       data-result-id="{{ result.id }}">
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-success" 
+                                        onclick="approveScore({{ result.id }})">
+                                    <i class="fas fa-check"></i> Approve Score
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted">
+                                    <small>Max: {{ result.question.max_marks }} marks</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Bulk Actions -->
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Bulk Actions</h5>
+                    <p class="text-muted">Approve all LLM suggested scores at once</p>
+                    <button class="btn btn-success btn-lg" onclick="bulkApproveAll()">
+                        <i class="fas fa-check-double"></i> Approve All LLM Scores
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function approveScore(resultId) {
+    const scoreInput = document.getElementById(`approved_score_${resultId}`);
+    const approvedScore = parseFloat(scoreInput.value);
+    
+    if (isNaN(approvedScore) || approvedScore < 0) {
+        showAlert('danger', 'Please enter a valid score');
+        return;
+    }
+    
+    $.ajax({
+        url: '{{ url_for("approve_evaluation") }}',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            result_id: resultId,
+            approved_score: approvedScore
+        }),
+        success: function(response) {
+            showAlert('success', response.message);
+            // Disable the input and button for this result
+            scoreInput.disabled = true;
+            scoreInput.closest('.border').querySelector('button').disabled = true;
+            scoreInput.closest('.border').querySelector('button').innerHTML = '<i class="fas fa-check"></i> Approved';
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON?.error || 'An error occurred';
+            showAlert('danger', error);
+        }
+    });
+}
+
+function bulkApproveAll() {
+    if (!confirm('Are you sure you want to approve all LLM suggested scores?')) {
+        return;
+    }
+    
+    $.ajax({
+        url: '{{ url_for("bulk_approve_evaluation") }}',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            exam_id: {{ exam.id }},
+            student_id: {{ student.id }}
+        }),
+        success: function(response) {
+            showAlert('success', response.message);
+            setTimeout(() => {
+                window.location.href = '{{ url_for("pending_evaluations") }}';
+            }, 1500);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON?.error || 'An error occurred';
+            showAlert('danger', error);
+        }
+    });
+}
+
+function showAlert(type, message) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        </div>
+    `;
+    $('.container').prepend(alertHtml);
+}
+</script>
+{% endblock %}

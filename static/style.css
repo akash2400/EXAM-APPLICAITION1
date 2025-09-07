@@ -66,9 +66,19 @@ body {
     font-size: var(--carbon-font-size-base);
     line-height: 1.5;
     color: var(--carbon-gray-100);
-    background-color: var(--carbon-gray-10);
+    background-color: #f8f9fa; /* Light gray background */
     margin: 0;
     padding: 0;
+}
+
+/* Container and Layout */
+.container {
+    max-width: 1200px;
+}
+
+.main-content {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
 }
 
 /* Typography */
@@ -86,16 +96,13 @@ h4 { font-size: var(--carbon-font-size-large); }
 h5 { font-size: var(--carbon-font-size-base); }
 h6 { font-size: var(--carbon-font-size-small); }
 
-/* Navigation */
+/* Navigation - Let Bootstrap handle the navbar styling */
 .navbar {
-    background-color: var(--carbon-gray-100) !important;
-    border-bottom: 1px solid var(--carbon-gray-80);
-    box-shadow: var(--carbon-shadow-01);
+    /* Remove custom overrides to let Bootstrap work properly */
 }
 
 .navbar-brand {
     font-weight: 600;
-    color: white !important;
     font-size: var(--carbon-font-size-large);
 }
 
