@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-Optimized Semantic Answer Similarity (SAS) System
+Primary Filter System for Answer Quality Assessment
 Integrated with the exam application - allows admin threshold configuration.
 """
 
-from sentence_transformers import CrossEncoder
+from sentence_transformers import SentenceTransformer
 import numpy as np
 import sys
 import os
 from typing import List, Tuple, Dict, Any
 
-class OptimizedSASEvaluator:
-    """Optimized Semantic Answer Similarity evaluator integrated with exam system."""
+class PrimaryFilter:
+    """Primary filter for answer quality assessment integrated with exam system."""
     
     def __init__(self, device: str = "cpu", threshold: float = 0.6, max_marks: int = 10):
         """
-        Initialize the optimized SAS system.
+        Initialize the primary filter system.
         
         Args:
             device: Device to run the model on ("cpu" or "cuda")
@@ -24,27 +24,23 @@ class OptimizedSASEvaluator:
         """
         self.device = device
         self.model = None
-        self.model_name = "cross-encoder/stsb-roberta-large"
+        self.model_name = "all-mpnet-base-v2"
         self.batch_size = 8
         self.threshold = threshold
         self.max_marks = max_marks
         
-        print(f"Initializing Optimized SAS System - Threshold: {self.threshold}, Max marks: {self.max_marks}")
+        print(f"Initializing Primary Filter System - Threshold: {self.threshold}, Max marks: {self.max_marks}")
         self._load_model()
     
     def _load_model(self):
         """Load and configure the optimal model."""
         try:
-            cache_path = "./adaptive_cache/cross-encoder_stsb-roberta-large"
-            if os.path.exists(cache_path):
-                print(f"Loading model from cache: {cache_path}")
-                self.model = CrossEncoder(cache_path, device=self.device)
-            else:
-                print(f"Downloading model: {self.model_name}")
-                self.model = CrossEncoder(self.model_name, device=self.device)
+            # Load model using SentenceTransformer
+            print(f"Loading model: {self.model_name}")
+            self.model = SentenceTransformer(self.model_name, device=self.device)
             
             print("Model loaded and configured successfully")
-            print("OptimizedSASEvaluator initialized successfully")
+            print("PrimaryFilter initialized successfully")
             
         except Exception as e:
             print(f"Error loading model: {str(e)}")
@@ -80,9 +76,7 @@ class OptimizedSASEvaluator:
             }
         
         # Get raw similarity score from the model
-        pairs = [(reference_answer, student_answer)]
-        raw_scores = self.model.predict(pairs, batch_size=1)
-        raw_score = float(raw_scores[0])
+        raw_score = self._compute_similarity(reference_answer, student_answer)
         
         # Apply threshold filtering - let the model's semantic understanding do the work
         if raw_score < self.threshold:
@@ -160,6 +154,21 @@ class OptimizedSASEvaluator:
             return "Fair"
         else:
             return "Poor"
+    
+    def _compute_similarity(self, text1: str, text2: str) -> float:
+        """Compute similarity between two texts using the model."""
+        try:
+            # Get embeddings using SentenceTransformer
+            embeddings = self.model.encode([text1, text2])
+            
+            # Compute cosine similarity
+            similarity = np.dot(embeddings[0], embeddings[1]) / (np.linalg.norm(embeddings[0]) * np.linalg.norm(embeddings[1]))
+            
+            return float(similarity)
+                
+        except Exception as e:
+            print(f"Error computing similarity: {e}")
+            return 0.0
     
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the loaded model."""

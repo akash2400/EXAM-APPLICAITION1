@@ -1,147 +1,76 @@
 #!/usr/bin/env python3
 """
-Evaluator Selector for Multiple AI Evaluators
-============================================
+Evaluator Selector for LLM Evaluator
+====================================
 
-This module provides a unified interface for selecting and initializing
-different AI evaluators. Currently supports:
-- AIEvaluator (default): Multi-layer evaluation with bi-encoder + cross-encoder
-- CleanEvaluator: Enhanced evaluation with multiple AI models
-- ModelBasedCriticalWordEvaluator: Model-based critical word detection with attention mechanisms
+This module provides a unified interface for the LLM evaluator system.
+Currently supports:
+- LLMEvaluator: LLM-based evaluation using Ollama and Llama 7B
 """
 
 import logging
-from typing import Optional, Union
-from ai_evaluator import AIEvaluator, EvaluatorConfig
-from optimized_sas_evaluator import OptimizedSASEvaluator
+from typing import Optional
+from llm_evaluator import LLMEvaluator
 from evaluator_config import get_evaluator_config
-
-# Try to import optional evaluators
-try:
-    from clean_model_driven_evaluator import CleanEvaluator
-    CLEAN_EVALUATOR_AVAILABLE = True
-except ImportError:
-    CleanEvaluator = None
-    CLEAN_EVALUATOR_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
-def get_evaluator_from_config(evaluator_type: str = "ai") -> Union[AIEvaluator, CleanEvaluator, OptimizedSASEvaluator]:
+def get_evaluator_from_config(evaluator_type: str = "llm") -> LLMEvaluator:
     """
-    Get the specified evaluator from configuration.
+    Get the LLM evaluator from configuration.
     
     Args:
-        evaluator_type (str): Type of evaluator ("ai", "clean", "optimized_sas")
+        evaluator_type (str): Type of evaluator (only "llm" supported)
         
     Returns:
-        Union[AIEvaluator, CleanEvaluator, OptimizedSASEvaluator]: Initialized evaluator instance
+        LLMEvaluator: Initialized LLM evaluator instance
     """
     config = get_evaluator_config()
-    cache_dir = config.get('cache_dir', './adaptive_cache')
     
-    if evaluator_type.lower() == "ai":
-        logger.info("Initializing AIEvaluator as main evaluation engine")
-        return _initialize_ai_evaluator(cache_dir)
-    elif evaluator_type.lower() == "optimized_sas":
-        logger.info("Initializing OptimizedSASEvaluator as main evaluation engine")
-        return _initialize_optimized_sas_evaluator(config)
-    elif evaluator_type.lower() == "clean" and CLEAN_EVALUATOR_AVAILABLE:
-        logger.info("Initializing CleanEvaluator as main evaluation engine")
-        return _initialize_clean_evaluator(cache_dir)
-    else:
-        logger.info("Falling back to AIEvaluator as main evaluation engine")
-        return _initialize_ai_evaluator(cache_dir)
+    logger.info("Initializing LLMEvaluator as main evaluation engine")
+    return _initialize_llm_evaluator(config)
 
-def _initialize_ai_evaluator(cache_dir: str) -> AIEvaluator:
+def _initialize_llm_evaluator(config: dict) -> LLMEvaluator:
     """
-    Initialize the AIEvaluator as the main evaluation engine.
-    
-    Args:
-        cache_dir (str): Directory for model caching
-        
-    Returns:
-        AIEvaluator: Initialized evaluator instance
-    """
-    try:
-        logger.info("Initializing AIEvaluator (Multi-Layer)...")
-        
-        # Configure AIEvaluator with cache directory
-        evaluator_config = EvaluatorConfig(cache_dir=cache_dir)
-        evaluator = AIEvaluator(evaluator_config)
-        
-        logger.info("AIEvaluator initialized successfully")
-        return evaluator
-            
-    except Exception as e:
-        logger.error(f"Error initializing AIEvaluator: {e}")
-        raise
-
-def _initialize_clean_evaluator(cache_dir: str):
-    """
-    Initialize the CleanEvaluator as the main evaluation engine.
-    
-    Args:
-        cache_dir (str): Directory for model caching
-        
-    Returns:
-        CleanEvaluator: Initialized evaluator instance
-    """
-    if not CLEAN_EVALUATOR_AVAILABLE:
-        raise ImportError("CleanEvaluator is not available")
-        
-    try:
-        logger.info("Initializing CleanEvaluator...")
-        
-        evaluator = CleanEvaluator()
-        evaluator.config.cache_dir = cache_dir
-        
-        if evaluator.initialize():
-            logger.info("CleanEvaluator initialized successfully")
-            return evaluator
-        else:
-            logger.error("Failed to initialize CleanEvaluator")
-            raise RuntimeError("Failed to initialize CleanEvaluator")
-            
-    except Exception as e:
-        logger.error(f"Error initializing CleanEvaluator: {e}")
-        raise
-
-def _initialize_optimized_sas_evaluator(config: dict) -> OptimizedSASEvaluator:
-    """
-    Initialize the OptimizedSASEvaluator as the main evaluation engine.
+    Initialize the LLMEvaluator as the main evaluation engine.
     
     Args:
         config (dict): Configuration dictionary
         
     Returns:
-        OptimizedSASEvaluator: Initialized evaluator instance
+        LLMEvaluator: Initialized evaluator instance
     """
     try:
-        logger.info("Initializing OptimizedSASEvaluator...")
+        logger.info("Initializing LLMEvaluator...")
         
-        # Get threshold from config
-        thresholds = config.get('evaluation_thresholds', {})
-        sas_threshold = thresholds.get('sas_threshold', 0.25)
+        # Get configuration values
+        ollama_url = config.get('ollama_url', 'http://localhost:11434')
+        model_name = config.get('model_name', 'llama2:latest')
+        max_retries = config.get('max_retries', 3)
+        timeout = config.get('timeout', 60)
+        sas_threshold = config.get('sas_threshold', 0.15)
         
-        evaluator = OptimizedSASEvaluator(
-            device="cpu",  # Use CPU by default for compatibility
-            threshold=sas_threshold,
-            max_marks=10  # Use 10 for compatibility with existing system
+        evaluator = LLMEvaluator(
+            ollama_url=ollama_url,
+            model_name=model_name,
+            max_retries=max_retries,
+            timeout=timeout,
+            sas_threshold=sas_threshold
         )
         
-        logger.info("OptimizedSASEvaluator initialized successfully")
+        logger.info("LLMEvaluator initialized successfully")
         return evaluator
             
     except Exception as e:
-        logger.error(f"Error initializing OptimizedSASEvaluator: {e}")
+        logger.error(f"Error initializing LLMEvaluator: {e}")
         raise
 
-def get_evaluator_info(evaluator_type: str = "ai") -> dict:
+def get_evaluator_info(evaluator_type: str = "llm") -> dict:
     """
     Get information about the current evaluator.
     
     Args:
-        evaluator_type (str): Type of evaluator ("ai", "clean", or "critical_word")
+        evaluator_type (str): Type of evaluator (only "llm" supported)
         
     Returns:
         dict: Evaluator information
@@ -149,43 +78,23 @@ def get_evaluator_info(evaluator_type: str = "ai") -> dict:
     try:
         evaluator = get_evaluator_from_config(evaluator_type)
         
-        if isinstance(evaluator, AIEvaluator):
-            return {
-                'type': 'AIEvaluator',
-                'status': 'initialized',
-                'models': ['bi_encoder', 'cross_encoder'],
-                'config': {
-                    'cache_dir': evaluator.config.cache_dir,
-                    'bi_encoder': evaluator.config.bi_encoder_name,
-                    'cross_encoder': evaluator.config.cross_encoder_name
-                }
+        return {
+            'type': 'LLMEvaluator',
+            'status': 'initialized' if evaluator.is_available else 'not_available',
+            'model_name': evaluator.model_name,
+            'ollama_url': evaluator.ollama_url,
+            'is_available': evaluator.is_available,
+            'config': {
+                'model_name': evaluator.model_name,
+                'ollama_url': evaluator.ollama_url,
+                'max_retries': evaluator.max_retries,
+                'timeout': evaluator.timeout,
+                'filter_threshold': evaluator.filter_threshold
             }
-        elif isinstance(evaluator, OptimizedSASEvaluator):
-            return {
-                'type': 'OptimizedSASEvaluator',
-                'status': 'initialized' if evaluator.model is not None else 'not_initialized',
-                'models': [evaluator.model_name] if evaluator.model else [],
-                'config': {
-                    'model_name': evaluator.model_name,
-                    'threshold': evaluator.threshold,
-                    'max_marks': evaluator.max_marks,
-                    'batch_size': evaluator.batch_size,
-                    'device': evaluator.device
-                }
-            }
-        else:
-            return {
-                'type': 'CleanEvaluator',
-                'status': 'initialized' if evaluator.is_initialized else 'not_initialized',
-                'models': list(evaluator.models.keys()) if hasattr(evaluator, 'models') else [],
-                'config': {
-                    'cache_dir': evaluator.config.cache_dir
-                }
-            }
+        }
     except Exception as e:
         return {
-            'type': 'Unknown',
+            'type': 'LLMEvaluator',
             'status': 'error',
             'error': str(e)
         }
-

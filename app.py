@@ -878,7 +878,7 @@ def submit_exam():
                     # Extract LLM evaluation details
                     llm_score = evaluation_result['final_score']
                     details = evaluation_result['details']
-                    explanation = details.get('explanation', 'No explanation provided')
+                    explanation = evaluation_result.get('explanation', 'No explanation provided')
                     
                     # Log evaluation details
                     print(f"🔍 Question {question.id} LLM Evaluation:")

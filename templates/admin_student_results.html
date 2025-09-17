@@ -81,7 +81,7 @@
         <div class="card">
             <div class="card-body text-center">
                 <i class="fas fa-robot fa-2x mb-2 text-warning"></i>
-                <h4 class="text-warning">{{ "%.1f"|format((results|sum(attribute='ai_score') / results|length * 100) if results else 0) }}%</h4>
+                <h4 class="text-warning">{{ "%.1f"|format((results|sum(attribute='llm_score') / results|length / (results[0].question.max_marks if results and results[0].question else 1) * 100) if results else 0) }}%</h4>
                 <p class="mb-0 text-muted">Avg AI Score</p>
             </div>
         </div>
@@ -129,12 +129,12 @@
                         <div class="mb-3">
                             <label class="form-label fw-bold">AI Evaluation Score</label>
                             <div class="display-6 fw-bold 
-                                 {% if result.ai_score >= 0.8 %}text-success
-                                 {% elif result.ai_score >= 0.6 %}text-warning
+                                 {% if (result.llm_score or 0) >= (result.question.max_marks * 0.8) %}text-success
+                                 {% elif (result.llm_score or 0) >= (result.question.max_marks * 0.6) %}text-warning
                                  {% else %}text-danger{% endif %}">
-                                {{ (result.ai_score * 100)|round(1) }}%
+                                {{ ((result.llm_score or 0) / (result.question.max_marks if result.question else 1) * 100)|round(1) }}%
                             </div>
-                            <small class="text-muted">Raw Score: {{ result.ai_score|round(3) }}</small>
+                            <small class="text-muted">Raw Score: {{ (result.llm_score or 0)|round(3) }}</small>
                         </div>
                         
                         <!-- Marks -->
@@ -147,8 +147,8 @@
                         
                         <!-- AI Score -->
                         <div class="mb-3">
-                            <span class="badge {% if result.ai_score >= 0.8 %}bg-success{% elif result.ai_score >= 0.6 %}bg-warning{% else %}bg-danger{% endif %}">
-                                {{ "%.1f"|format(result.ai_score * 100) }}% AI Score
+                            <span class="badge {% if (result.llm_score or 0) >= (result.question.max_marks * 0.8) %}bg-success{% elif (result.llm_score or 0) >= (result.question.max_marks * 0.6) %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ "%.1f"|format((result.llm_score or 0) / (result.question.max_marks if result.question else 1) * 100) }}% AI Score
                             </span>
                         </div>
                     </div>
@@ -163,8 +163,8 @@
                 </div>
                 <div class="progress" style="height: 8px;">
                     <div class="progress-bar 
-                         {% if result.ai_score >= 0.8 %}bg-success
-                         {% elif result.ai_score >= 0.6 %}bg-warning
+                         {% if (result.llm_score or 0) >= (result.question.max_marks * 0.8) %}bg-success
+                         {% elif (result.llm_score or 0) >= (result.question.max_marks * 0.6) %}bg-warning
                          {% else %}bg-danger{% endif %}" 
                          role="progressbar" 
                          style="width: {{ (result.marks_awarded / (result.question.max_marks if result.question else 1) * 100) }}%">
@@ -188,7 +188,7 @@
             <div class="col-md-4">
                 <h6 class="text-success">High-Quality Answers</h6>
                 <ul class="list-unstyled">
-                    {% set high_scores = results|selectattr('ai_score', '>=', 0.8)|list %}
+                    {% set high_scores = results|selectattr('llm_score', '>=', (results[0].question.max_marks * 0.8) if results and results[0].question else 0)|list %}
                     <li><i class="fas fa-star text-success me-2"></i>{{ high_scores|length }} excellent answers (80%+)</li>
                     <li><i class="fas fa-percentage text-success me-2"></i>{{ "%.1f"|format((high_scores|length / results|length * 100) if results else 0) }}% excellent rate</li>
                 </ul>
@@ -196,8 +196,8 @@
             <div class="col-md-4">
                 <h6 class="text-info">AI Evaluation Insights</h6>
                 <ul class="list-unstyled">
-                    {% set high_scores = results|selectattr('ai_score', '>=', 0.8)|list %}
-                    {% set medium_scores = results|selectattr('ai_score', '>=', 0.6)|selectattr('ai_score', '<', 0.8)|list %}
+                    {% set high_scores = results|selectattr('llm_score', '>=', (results[0].question.max_marks * 0.8) if results and results[0].question else 0)|list %}
+                    {% set medium_scores = results|selectattr('llm_score', '>=', (results[0].question.max_marks * 0.6) if results and results[0].question else 0)|selectattr('llm_score', '<', (results[0].question.max_marks * 0.8) if results and results[0].question else 0)|list %}
                     <li><i class="fas fa-star text-warning me-2"></i>{{ high_scores|length }} high-quality answers (80%+)</li>
                     <li><i class="fas fa-star-half-alt text-info me-2"></i>{{ medium_scores|length }} medium-quality answers (60-79%)</li>
                 </ul>
@@ -205,7 +205,7 @@
             <div class="col-md-4">
                 <h6 class="text-warning">Areas Requiring Review</h6>
                 <ul class="list-unstyled">
-                    {% set low_scores = results|selectattr('ai_score', '<', 0.6)|list %}
+                    {% set low_scores = results|selectattr('llm_score', '<', (results[0].question.max_marks * 0.6) if results and results[0].question else 0)|list %}
                     <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>{{ low_scores|length }} low-scoring responses</li>
                     <li><i class="fas fa-info-circle text-info me-2"></i>All scores based on AI evaluation</li>
                 </ul>
